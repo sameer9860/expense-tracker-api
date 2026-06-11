@@ -27,7 +27,7 @@ def expense_list(request):
         start_date = request.query_params.get("start_date")
         end_date = request.query_params.get("end_date")
         if start_date:
-            expenses = expenses.filter(date__gt=start_date)
+            expenses = expenses.filter(date__gte=start_date)
         if end_date:
             expenses = expenses.filter(date__lte=end_date)
 
