@@ -1,3 +1,6 @@
+import os
+import requests
+from decimal import Decimal
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -70,16 +73,86 @@ def expense_detail(request, pk):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def get_exchange_rates(base_currency):
+    api_url = os.getenv("EXCHANGE_RATE_API_URL", "https://open.er-api.com/v6/latest")
+    
+    urls_to_try = []
+    if "open.er-api.com" in api_url:
+        urls_to_try.append(f"{api_url.rstrip('/')}/{base_currency}")
+    else:
+        urls_to_try.append(f"{api_url.rstrip('/')}/latest?base={base_currency}")
+        urls_to_try.append(f"https://open.er-api.com/v6/latest/{base_currency}")
+        
+    for url in urls_to_try:
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("result") == "success" or "rates" in data:
+                    rates = data.get("rates", {})
+                    as_of = data.get("time_last_update_utc", "")
+                    if as_of:
+                        try:
+                            from datetime import datetime
+                            dt = datetime.strptime(as_of.split(" +")[0], "%a, %d %b %Y %H:%M:%S")
+                            as_of = dt.strftime("%Y-%m-%d")
+                        except Exception:
+                            pass
+                    return rates, as_of
+        except Exception:
+            continue
+            
+    return {base_currency: 1.0}, ""
+
+
 @api_view(["GET"])
 def expense_summary(request):
-    # Only summarize expenses belonging to the authenticated user
-    summary = (
-        Expense.objects.filter(user=request.user)
-        .values("category__name")
-        .annotate(total=Sum("amount"))
-        .order_by("category__name")
-    )
-    return Response(list(summary))
+    base_currency = os.getenv("BASE_CURRENCY", "USD")
+    rates, as_of = get_exchange_rates(base_currency)
+
+    categories = Category.objects.filter(user=request.user)
+    categories_summary = []
+    
+    for category in categories:
+        expenses = Expense.objects.filter(user=request.user, category=category)
+        if not expenses.exists():
+            continue
+            
+        total_category_spent = Decimal("0.00")
+        last_rate = "1.00"
+        
+        for expense in expenses:
+            amount = expense.amount
+            currency = expense.currency.upper()
+            
+            if currency == base_currency:
+                total_category_spent += amount
+                last_rate = "1.00"
+            else:
+                rate_to_base = rates.get(currency)
+                if rate_to_base:
+                    rate_dec = Decimal(str(rate_to_base))
+                    converted_amount = amount / rate_dec
+                    total_category_spent += converted_amount
+                    
+                    display_rate = Decimal("1") / rate_dec
+                    last_rate = f"{display_rate:.2f}"
+                else:
+                    total_category_spent += amount
+                    last_rate = "1.00"
+                    
+        categories_summary.append({
+            "category": category.name,
+            "total": f"{total_category_spent:.2f}",
+            "rate": last_rate,
+            "as_of": as_of if as_of else "N/A"
+        })
+        
+    response_data = {
+        "base_currency": base_currency,
+        "categories": categories_summary
+    }
+    return Response(response_data)
 
 
 # --- Authentication Views ---
