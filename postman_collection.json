@@ -168,7 +168,7 @@
               "path": ["api", "expenses", ""],
               "query": [
                 { "key": "search", "value": "lunch", "description": "Search in title and notes (case-insensitive)" },
-                { "key": "category", "value": "2", "description": "Filter by category ID" },
+                { "key": "category", "value": "1", "description": "Filter by category ID" },
                 { "key": "min_amount", "value": "10", "description": "Minimum amount (inclusive)" },
                 { "key": "max_amount", "value": "100", "description": "Maximum amount (inclusive)" }
               ]
@@ -186,7 +186,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Weekly shop\",\n  \"amount\": \"54.20\",\n  \"currency\": \"USD\",\n  \"category\": 2,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Supermarket run\"\n}"
+              "raw": "{\n  \"title\": \"Weekly shop\",\n  \"amount\": \"54.20\",\n  \"currency\": \"USD\",\n  \"category\": 1,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Supermarket run\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/expenses/",
@@ -206,7 +206,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Hotel in Paris\",\n  \"amount\": \"120.00\",\n  \"currency\": \"EUR\",\n  \"category\": 2,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Two nights\"\n}"
+              "raw": "{\n  \"title\": \"Hotel in Paris\",\n  \"amount\": \"120.00\",\n  \"currency\": \"EUR\",\n  \"category\": 1,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Two nights\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/expenses/",
@@ -226,7 +226,7 @@
             "url": {
               "raw": "{{base_url}}/api/expenses/2/",
               "host": ["{{base_url}}"],
-              "path": ["api", "expenses", "2", ""]
+              "path": ["api", "expenses", "1", ""]
             },
             "description": "Retrieves a single expense by ID."
           }
@@ -241,12 +241,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Weekly shop (updated)\",\n  \"amount\": \"60.00\",\n  \"currency\": \"USD\",\n  \"category\": 2,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Adjusted total\"\n}"
+              "raw": "{\n  \"title\": \"Weekly shop (updated)\",\n  \"amount\": \"60.00\",\n  \"currency\": \"USD\",\n  \"category\": 1,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Adjusted total\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/expenses/2/",
               "host": ["{{base_url}}"],
-              "path": ["api", "expenses", "2", ""]
+              "path": ["api", "expenses", "1", ""]
             },
             "description": "Updates an existing expense by ID."
           }
@@ -261,7 +261,7 @@
             "url": {
               "raw": "{{base_url}}/api/expenses/2/",
               "host": ["{{base_url}}"],
-              "path": ["api", "expenses", "2", ""]
+              "path": ["api", "expenses", "1", ""]
             },
             "description": "Deletes an expense by ID."
           }
@@ -295,7 +295,7 @@
               "query": [
                 { "key": "start_date", "value": "2026-01-01", "disabled": true },
                 { "key": "end_date", "value": "2026-12-31", "disabled": true },
-                { "key": "category", "value": "2", "disabled": true }
+                { "key": "category", "value": "1", "disabled": true }
               ]
             },
             "description": "Optional B feature: downloads a CSV file of all the authenticated user's expenses. Supports start_date, end_date, and category filters."
