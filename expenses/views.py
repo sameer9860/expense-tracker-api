@@ -1,4 +1,5 @@
 import os
+import csv
 import requests
 import threading
 from decimal import Decimal
@@ -7,7 +8,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from django.db.models import Sum
+from django.db.models import Sum, Q
+from django.http import HttpResponse
 from django.contrib.auth.models import User
 
 from .models import Category, Expense
@@ -15,7 +17,7 @@ from .serializers import CategorySerializer, ExpenseSerializer
 
 
 def send_bot_alert_async(category_name, total_spent, limit, base_currency, month_name, year):
-    # Support Discord Webhooks (easiest fallback if Telegram is blocked)
+    # Support Discord Webhooks telegram not supported (easiest fallback if Telegram is blocked)
     discord_webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
     if discord_webhook_url:
         message = (
@@ -122,6 +124,24 @@ def expense_list(request):
             expenses = expenses.filter(date__gte=start_date)
         if end_date:
             expenses = expenses.filter(date__lte=end_date)
+
+        # --- Option A: Search & Filtering ---
+        search = request.query_params.get("search")
+        if search:
+            expenses = expenses.filter(
+                Q(title__icontains=search) | Q(notes__icontains=search)
+            )
+
+        category_id = request.query_params.get("category")
+        if category_id:
+            expenses = expenses.filter(category__id=category_id)
+
+        min_amount = request.query_params.get("min_amount")
+        max_amount = request.query_params.get("max_amount")
+        if min_amount:
+            expenses = expenses.filter(amount__gte=min_amount)
+        if max_amount:
+            expenses = expenses.filter(amount__lte=max_amount)
 
         serializer = ExpenseSerializer(expenses, many=True)
         return Response(serializer.data)
@@ -259,6 +279,44 @@ def get_exchange_rates(base_currency):
             continue
             
     return {base_currency: 1.0}, ""
+
+
+# --- Option B: CSV Export ---
+
+@api_view(["GET"])
+def export_expenses_csv(request):
+    expenses = Expense.objects.filter(user=request.user).select_related("category")
+
+    # Apply same optional filters as expense_list for consistency
+    start_date = request.query_params.get("start_date")
+    end_date = request.query_params.get("end_date")
+    if start_date:
+        expenses = expenses.filter(date__gte=start_date)
+    if end_date:
+        expenses = expenses.filter(date__lte=end_date)
+
+    category_id = request.query_params.get("category")
+    if category_id:
+        expenses = expenses.filter(category__id=category_id)
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="expenses.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(["ID", "Title", "Amount", "Currency", "Category", "Date", "Notes"])
+
+    for expense in expenses:
+        writer.writerow([
+            expense.id,
+            expense.title,
+            expense.amount,
+            expense.currency,
+            expense.category.name,
+            expense.date,
+            expense.notes,
+        ])
+
+    return response
 
 
 @api_view(["GET"])
