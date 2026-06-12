@@ -7,4 +7,5 @@ dependencies = [
     "django==5.0.6",
     "djangorestframework==3.15.1",
     "python-dotenv==1.0.1",
+    "requests>=2.34.2",
 ]
