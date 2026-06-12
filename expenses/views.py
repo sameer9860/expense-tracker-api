@@ -1,5 +1,6 @@
 import os
 import requests
+import threading
 from decimal import Decimal
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -11,6 +12,87 @@ from django.contrib.auth.models import User
 
 from .models import Category, Expense
 from .serializers import CategorySerializer, ExpenseSerializer
+
+
+def send_bot_alert_async(category_name, total_spent, limit, base_currency, month_name, year):
+    # Support Discord Webhooks (easiest fallback if Telegram is blocked)
+    discord_webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+    if discord_webhook_url:
+        message = (
+            f"⚠️ **Budget alert**: \"{category_name}\" is over its monthly limit.\n"
+            f"Spent {total_spent:.2f} / {limit:.2f} {base_currency} for {month_name} {year}."
+        )
+        payload = {"content": message}
+        
+        def run_discord():
+            try:
+                response = requests.post(discord_webhook_url, json=payload, timeout=5)
+                print(f"Discord webhook response: {response.status_code}")
+            except Exception as e:
+                print(f"Failed to send Discord alert: {e}")
+                
+        threading.Thread(target=run_discord).start()
+        return
+
+    # Fallback to Telegram Bot API
+    token = os.getenv("BOT_TOKEN")
+    chat_id = os.getenv("BOT_CHAT_ID")
+    if not token or not chat_id:
+        print("Bot credentials (Telegram or Discord) not found in environment settings.")
+        return
+
+    message = (
+        f"⚠️ Budget alert: \"{category_name}\" is over its monthly limit.\n"
+        f"Spent {total_spent:.2f} / {limit:.2f} {base_currency} for {month_name} {year}."
+    )
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message
+    }
+
+    def run_telegram():
+        try:
+            response = requests.post(url, json=payload, timeout=5)
+            print(f"Telegram bot alert response: {response.status_code} {response.text}")
+        except Exception as e:
+            print(f"Failed to send Telegram alert: {e}")
+
+    threading.Thread(target=run_telegram).start()
+
+
+def check_budget_threshold(user, category, expense_date, current_expense_id=None):
+    if not category.monthly_limit:
+        return Decimal("0.00")
+
+    base_currency = os.getenv("BASE_CURRENCY", "USD")
+    rates, _ = get_exchange_rates(base_currency)
+
+    # Get MTD expenses excluding the current one (if it's an update)
+    expenses = Expense.objects.filter(
+        user=user,
+        category=category,
+        date__year=expense_date.year,
+        date__month=expense_date.month
+    )
+    if current_expense_id:
+        expenses = expenses.exclude(pk=current_expense_id)
+
+    total_before = Decimal("0.00")
+    for exp in expenses:
+        amount = exp.amount
+        currency = exp.currency.upper()
+        if currency == base_currency:
+            total_before += amount
+        else:
+            rate_to_base = rates.get(currency)
+            if rate_to_base:
+                total_before += amount / Decimal(str(rate_to_base))
+            else:
+                total_before += amount
+
+    return total_before
 
 
 @api_view(["GET", "POST"])
@@ -46,8 +128,44 @@ def expense_list(request):
 
     serializer = ExpenseSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+
+    category = serializer.validated_data.get("category")
+    expense_date = serializer.validated_data.get("date")
+
+    # Calculate total MTD spent before saving
+    total_before = Decimal("0.00")
+    if category and category.user == request.user and category.monthly_limit and expense_date:
+        total_before = check_budget_threshold(request.user, category, expense_date)
+
     # Save expense associated with the logged-in user
-    serializer.save(user=request.user)
+    expense = serializer.save(user=request.user)
+
+    # Calculate total MTD spent after saving
+    if category and category.user == request.user and category.monthly_limit and expense_date:
+        base_currency = os.getenv("BASE_CURRENCY", "USD")
+        new_amount = expense.amount
+        new_currency = expense.currency.upper()
+        rates, _ = get_exchange_rates(base_currency)
+
+        if new_currency == base_currency:
+            new_amount_base = new_amount
+        else:
+            rate_to_base = rates.get(new_currency)
+            new_amount_base = new_amount / Decimal(str(rate_to_base)) if rate_to_base else new_amount
+
+        total_after = total_before + new_amount_base
+
+        if total_before <= category.monthly_limit < total_after:
+            month_name = expense_date.strftime("%B")
+            send_bot_alert_async(
+                category.name,
+                total_after,
+                category.monthly_limit,
+                base_currency,
+                month_name,
+                expense_date.year
+            )
+
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -66,7 +184,43 @@ def expense_detail(request, pk):
     if request.method == "PUT":
         serializer = ExpenseSerializer(expense, data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+
+        category = serializer.validated_data.get("category", expense.category)
+        expense_date = serializer.validated_data.get("date", expense.date)
+
+        # Calculate total MTD spent before saving (excluding the current expense)
+        total_before = Decimal("0.00")
+        if category and category.user == request.user and category.monthly_limit and expense_date:
+            total_before = check_budget_threshold(request.user, category, expense_date, current_expense_id=expense.id)
+
+        updated_expense = serializer.save()
+
+        # Calculate total MTD spent after saving
+        if category and category.user == request.user and category.monthly_limit and expense_date:
+            base_currency = os.getenv("BASE_CURRENCY", "USD")
+            new_amount = updated_expense.amount
+            new_currency = updated_expense.currency.upper()
+            rates, _ = get_exchange_rates(base_currency)
+
+            if new_currency == base_currency:
+                new_amount_base = new_amount
+            else:
+                rate_to_base = rates.get(new_currency)
+                new_amount_base = new_amount / Decimal(str(rate_to_base)) if rate_to_base else new_amount
+
+            total_after = total_before + new_amount_base
+
+            if total_before <= category.monthly_limit < total_after:
+                month_name = expense_date.strftime("%B")
+                send_bot_alert_async(
+                    category.name,
+                    total_after,
+                    category.monthly_limit,
+                    base_currency,
+                    month_name,
+                    expense_date.year
+                )
+
         return Response(serializer.data)
 
     expense.delete()
@@ -74,14 +228,16 @@ def expense_detail(request, pk):
 
 
 def get_exchange_rates(base_currency):
-    api_url = os.getenv("EXCHANGE_RATE_API_URL", "https://open.er-api.com/v6/latest")
+    api_url = os.getenv("EXCHANGE_RATE_API_URL")
+    if not api_url:
+        api_url = "https://open.er-api.com/v6/latest"
     
     urls_to_try = []
     if "open.er-api.com" in api_url:
         urls_to_try.append(f"{api_url.rstrip('/')}/{base_currency}")
     else:
         urls_to_try.append(f"{api_url.rstrip('/')}/latest?base={base_currency}")
-        urls_to_try.append(f"https://open.er-api.com/v6/latest/{base_currency}")
+        urls_to_try.append(f"{api_url.rstrip('/')}/{base_currency}")
         
     for url in urls_to_try:
         try:
