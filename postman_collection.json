@@ -1,179 +1,307 @@
 {
   "info": {
     "name": "Expense Tracker API",
-    "description": "Collection covering all endpoints of the Expense Tracker API.",
+    "description": "Complete collection covering all endpoints of the Expense Tracker API including authentication, currency conversion, budget alerts, search/filtering, and CSV export.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "base_url",
       "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "token",
+      "value": "replace-with-your-token-after-login"
     }
   ],
   "item": [
     {
-      "name": "List Categories",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/api/categories/",
-          "host": ["{{base_url}}"],
-          "path": ["api", "categories", ""]
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john_doe\",\n  \"password\": \"securepassword123\",\n  \"email\": \"john@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register", ""]
+            },
+            "description": "Register a new user. Returns an auth token on success."
+          }
         },
-        "description": "Returns all categories."
-      }
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john_doe\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login", ""]
+            },
+            "description": "Login with username and password. Copy the returned token into the {{token}} variable."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/logout/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "logout", ""]
+            },
+            "description": "Invalidates the current auth token. Requires authentication."
+          }
+        }
+      ]
     },
     {
-      "name": "Create Category",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"name\": \"Groceries\",\n  \"description\": \"Food and household supplies\"\n}"
+      "name": "Categories",
+      "item": [
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/categories/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories", ""]
+            },
+            "description": "Returns all categories belonging to the authenticated user."
+          }
         },
-        "url": {
-          "raw": "{{base_url}}/api/categories/",
-          "host": ["{{base_url}}"],
-          "path": ["api", "categories", ""]
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Groceries\",\n  \"description\": \"Food and household supplies\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/categories/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories", ""]
+            },
+            "description": "Creates a new category for the authenticated user."
+          }
         },
-        "description": "Creates a new category."
-      }
+        {
+          "name": "Create Category (with monthly budget limit)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dining\",\n  \"description\": \"Restaurants and takeout\",\n  \"monthly_limit\": \"200.00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/categories/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories", ""]
+            },
+            "description": "Budget alerts feature: creates a category with a monthly spending limit. Crossing it triggers a Discord/Telegram bot alert."
+          }
+        }
+      ]
     },
     {
-      "name": "List Expenses",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/api/expenses/?start_date=2026-01-01&end_date=2026-12-31",
-          "host": ["{{base_url}}"],
-          "path": ["api", "expenses", ""],
-          "query": [
-            { "key": "start_date", "value": "2026-01-01" },
-            { "key": "end_date", "value": "2026-12-31" }
-          ]
+      "name": "Expenses",
+      "item": [
+        {
+          "name": "List Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expenses/?start_date=2026-01-01&end_date=2026-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["api", "expenses", ""],
+              "query": [
+                { "key": "start_date", "value": "2026-01-01" },
+                { "key": "end_date", "value": "2026-12-31" }
+              ]
+            },
+            "description": "Lists all expenses for the authenticated user. Optionally filter by start_date and end_date (YYYY-MM-DD)."
+          }
         },
-        "description": "Lists all expenses. Optionally filter by start_date and end_date (YYYY-MM-DD)."
-      }
-    },
-    {
-      "name": "Create Expense",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"title\": \"Weekly shop\",\n  \"amount\": \"54.20\",\n  \"category\": 1,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Supermarket run\"\n}"
+        {
+          "name": "Search & Filter Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expenses/?search=lunch&category=1&min_amount=10&max_amount=100",
+              "host": ["{{base_url}}"],
+              "path": ["api", "expenses", ""],
+              "query": [
+                { "key": "search", "value": "lunch", "description": "Search in title and notes (case-insensitive)" },
+                { "key": "category", "value": "2", "description": "Filter by category ID" },
+                { "key": "min_amount", "value": "10", "description": "Minimum amount (inclusive)" },
+                { "key": "max_amount", "value": "100", "description": "Maximum amount (inclusive)" }
+              ]
+            },
+            "description": "Optional A feature: search expenses by keyword and filter by category and amount range."
+          }
         },
-        "url": {
-          "raw": "{{base_url}}/api/expenses/",
-          "host": ["{{base_url}}"],
-          "path": ["api", "expenses", ""]
+        {
+          "name": "Create Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Weekly shop\",\n  \"amount\": \"54.20\",\n  \"currency\": \"USD\",\n  \"category\": 2,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Supermarket run\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/expenses/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "expenses", ""]
+            },
+            "description": "Creates a new expense for the authenticated user."
+          }
         },
-        "description": "Creates a new expense."
-      }
-    },
-    {
-      "name": "Retrieve Expense",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/api/expenses/1/",
-          "host": ["{{base_url}}"],
-          "path": ["api", "expenses", "1", ""]
+        {
+          "name": "Create Expense (foreign currency)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Hotel in Paris\",\n  \"amount\": \"120.00\",\n  \"currency\": \"EUR\",\n  \"category\": 2,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Two nights\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/expenses/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "expenses", ""]
+            },
+            "description": "Currency conversion feature: creates an expense in a non-base currency. The summary endpoint converts it to BASE_CURRENCY."
+          }
         },
-        "description": "Retrieves a single expense by id."
-      }
-    },
-    {
-      "name": "Update Expense",
-      "request": {
-        "method": "PUT",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"title\": \"Weekly shop (updated)\",\n  \"amount\": \"60.00\",\n  \"category\": 1,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Adjusted total\"\n}"
+        {
+          "name": "Retrieve Expense",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expenses/2/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "expenses", "2", ""]
+            },
+            "description": "Retrieves a single expense by ID."
+          }
         },
-        "url": {
-          "raw": "{{base_url}}/api/expenses/1/",
-          "host": ["{{base_url}}"],
-          "path": ["api", "expenses", "1", ""]
+        {
+          "name": "Update Expense",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Weekly shop (updated)\",\n  \"amount\": \"60.00\",\n  \"currency\": \"USD\",\n  \"category\": 2,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Adjusted total\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/expenses/2/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "expenses", "2", ""]
+            },
+            "description": "Updates an existing expense by ID."
+          }
         },
-        "description": "Updates an existing expense by id."
-      }
-    },
-    {
-      "name": "Delete Expense",
-      "request": {
-        "method": "DELETE",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/api/expenses/1/",
-          "host": ["{{base_url}}"],
-          "path": ["api", "expenses", "1", ""]
+        {
+          "name": "Delete Expense",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expenses/2/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "expenses", "2", ""]
+            },
+            "description": "Deletes an expense by ID."
+          }
         },
-        "description": "Deletes an expense by id."
-      }
-    },
-    {
-      "name": "Expense Summary",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/api/expenses/summary/",
-          "host": ["{{base_url}}"],
-          "path": ["api", "expenses", "summary", ""]
+        {
+          "name": "Expense Summary (with currency conversion)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expenses/summary/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "expenses", "summary", ""]
+            },
+            "description": "Currency conversion feature: returns total spent per category converted to BASE_CURRENCY with live exchange rates."
+          }
         },
-        "description": "Returns the total amount spent per category, converted to BASE_CURRENCY (Currency conversion feature)."
-      }
-    },
-    {
-      "name": "Create Category (with monthly budget)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"name\": \"Dining\",\n  \"description\": \"Restaurants and takeout\",\n  \"monthly_limit\": \"200.00\"\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}/api/categories/",
-          "host": ["{{base_url}}"],
-          "path": ["api", "categories", ""]
-        },
-        "description": "Bot alerts feature: creates a category with a monthly spending limit. Crossing it triggers a bot alert."
-      }
-    },
-    {
-      "name": "Create Expense (with currency)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"title\": \"Hotel in Paris\",\n  \"amount\": \"120.00\",\n  \"currency\": \"EUR\",\n  \"category\": 1,\n  \"date\": \"2026-06-09\",\n  \"notes\": \"Two nights\"\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}/api/expenses/",
-          "host": ["{{base_url}}"],
-          "path": ["api", "expenses", ""]
-        },
-        "description": "Currency conversion feature: creates an expense in a non-base currency. The summary endpoint converts it to BASE_CURRENCY."
-      }
+        {
+          "name": "Export Expenses (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Token {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expenses/export/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "expenses", "export", ""],
+              "query": [
+                { "key": "start_date", "value": "2026-01-01", "disabled": true },
+                { "key": "end_date", "value": "2026-12-31", "disabled": true },
+                { "key": "category", "value": "2", "disabled": true }
+              ]
+            },
+            "description": "Optional B feature: downloads a CSV file of all the authenticated user's expenses. Supports start_date, end_date, and category filters."
+          }
+        }
+      ]
     }
   ]
 }
